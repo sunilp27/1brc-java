@@ -12,7 +12,7 @@ public class Main {
 
     public static void main(String[] args) throws FileNotFoundException, InterruptedException {
 
-        File file = new File("/home/sunilpatil/Documents/measure_100mil.txt");
+        File file = new File("/home/sunilpatil/Documents/measurements.txt");
         long fileSize = file.length();
         int numProcs = Runtime.getRuntime().availableProcessors();
 
