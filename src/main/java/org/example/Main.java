@@ -3,6 +3,7 @@ package org.example;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
@@ -13,7 +14,7 @@ public class Main {
     static TreeMap<String, CityData> mainMap = new TreeMap<>();
 
     public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
-        String filePath = args[0];
+        String filePath = "../measurements.txt";
         File file = new File(filePath);
         long fileSize = file.length();
         int numProcs = Runtime.getRuntime().availableProcessors();
@@ -52,8 +53,10 @@ public class Main {
                     return map; // No data in this chunk
             }
 
-            ByteBuffer buffer = ByteBuffer.allocate(8192); // 8KB buffer
-            StringBuilder lineBuilder = new StringBuilder();
+            ByteBuffer buffer = ByteBuffer.allocate(8*1024); // 8KB buffer
+            byte[] lineBuilder = new byte[50];
+            var sti = 0;
+            var mid = -1;
 
             while (position < end) {
                 buffer.clear();
@@ -62,13 +65,19 @@ public class Main {
                     break;
 
                 buffer.flip();
+
                 for (int i = 0; i < buffer.limit(); i++) {
                     byte b = buffer.get();
                     if (b == '\n') {
-                        processLine(lineBuilder.toString(), map);
-                        lineBuilder.setLength(0);
+                        processLine(lineBuilder, mid, sti, map);
+                        lineBuilder = new byte[50];
+                        sti=0;
+                        mid=-1;
                     } else {
-                        lineBuilder.append((char) b);
+                        if (b == ';') {
+                            mid = sti;
+                        }
+                        lineBuilder[sti++] = b;
                     }
                 }
                 position += bytesRead;
@@ -85,25 +94,22 @@ public class Main {
                 buffer.flip();
                 for (int i = 0; i < buffer.limit(); i++) {
                     byte b = buffer.get();
+                    if (b == ';') {
+                        mid = sti;
+                    }
                     if (b == '\n') {
-                        processLine(lineBuilder.toString(), map);
-                        lineBuilder.setLength(0);
+                        processLine(lineBuilder, mid, sti, map);
+                        lineBuilder = new byte[50];
                         foundNewline = true;
                         position += i + 1;
                         break;
                     } else {
-                        lineBuilder.append((char) b);
+                        lineBuilder[sti++] = b;
                     }
                 }
                 if (!foundNewline)
                     position += bytesRead;
             }
-
-            // Process remaining line
-            if (lineBuilder.length() > 0) {
-                processLine(lineBuilder.toString(), map);
-            }
-
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -126,15 +132,21 @@ public class Main {
         return -1; // No newline found
     }
 
-    private static void processLine(String line, Map<String, CityData> map) {
-        String[] parts = line.split(";");
-        if (parts.length != 2)
-            return;
+    private static void processLine(byte[] line, int mid, int end, Map<String, CityData> map) {
 
-        String city = parts[0];
+        if(mid == -1 || mid>end){
+            return;
+        }
+
+        byte[] nameBytes = Arrays.copyOfRange(line, 0, mid);
+
+
+        String city = new String(nameBytes, StandardCharsets.UTF_8);
+        byte[] tempA  = Arrays.copyOfRange(line, mid+1, end);
+
         double temp;
         try {
-            temp = Double.parseDouble(parts[1]);
+            temp = parseDouble(tempA);
         } catch (NumberFormatException e) {
             return;
         }
@@ -187,5 +199,30 @@ public class Main {
             this.min = min;
             this.count = count;
         }
+    }
+
+    private static double parseDouble(byte[] temp)
+    {
+
+
+        var intStartIdx = 0;
+
+        if(temp[0] == '-'){
+            intStartIdx = 1;
+        }
+
+        double v = (temp[temp.length-1] - '0') / 10.0; // ← Fix here
+        double place = 1.0;
+
+        for(int i= temp.length-3; i>=intStartIdx; i--){
+            v += (temp[i]-'0') * place;
+            place *= 10;
+        }
+
+        if (intStartIdx == 1){
+            v = v * -1;
+        }
+
+        return v;
     }
 }
