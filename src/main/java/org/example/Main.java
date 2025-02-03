@@ -1,5 +1,7 @@
 package org.example;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -20,7 +22,7 @@ public class Main {
         int numProcs = Runtime.getRuntime().availableProcessors();
 
         ExecutorService executor = Executors.newFixedThreadPool(numProcs);
-        List<Future<HashMap<String, CityData>>> futures = new ArrayList<>();
+        List<Future<Object2ObjectOpenHashMap<String, CityData>>> futures = new ArrayList<>();
 
         long chunkSize = fileSize / numProcs;
         for (int i = 0; i < numProcs; i++) {
@@ -33,16 +35,17 @@ public class Main {
         executor.awaitTermination(1, TimeUnit.HOURS);
 
         // Combine results from all threads
-        for (Future<HashMap<String, CityData>> future : futures) {
-            HashMap<String, CityData> chunkResult = future.get();
+        for (Future<Object2ObjectOpenHashMap<String, CityData>> future : futures) {
+            Object2ObjectOpenHashMap<String, CityData> chunkResult = future.get();
             mergeResults(chunkResult);
         }
 
         printResults();
     }
 
-    private static HashMap<String, CityData> processChunk(String filePath, long start, long end) {
-        HashMap<String, CityData> map = new HashMap<>();
+    private static Object2ObjectOpenHashMap<String, CityData> processChunk(String filePath, long start, long end) {
+        Object2ObjectOpenHashMap<String, CityData> map =
+                new Object2ObjectOpenHashMap<>(2048, 0.9f);
         try (FileChannel channel = FileChannel.open(Paths.get(filePath), StandardOpenOption.READ)) {
             long position = start;
 
@@ -164,7 +167,7 @@ public class Main {
         });
     }
 
-    private static void mergeResults(HashMap<String, CityData> chunkResult) {
+    private static void mergeResults(Object2ObjectOpenHashMap<String, CityData> chunkResult) {
         for (Map.Entry<String, CityData> entry : chunkResult.entrySet()) {
             mainMap.merge(entry.getKey(), entry.getValue(), (v1, v2) -> {
                 v1.count += v2.count;
